@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Edge Updated
 // @namespace    https://www.bing.com/
-// @version      0.1
-// @description  try to take over the world!
+// @version      0.2
+// @description  Edge Automation
 // @author       You
 // @match        https://www.bing.com/search*
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
@@ -154,10 +154,37 @@ function getRewardUUID(reward){
     return [true, uuid];
 }
 
+function getNumberFromString_forRandomSearch(str){
+    let debug = Debug(true);
+    debug("getNumberFromString_forRandomSearch", str);
+    let arr = str.split(" ");
+    debug("arr", arr);
+    let number=-1;
+    for (let i=0;i<arr.length;i++){
+        let num = parseInt(arr[i]);
+        if (num){
+            number = num;
+            break;
+        }
+    }
+    debug("number", number);
+    return number;
+}
+
+function makeid(length) {
+    var result = '';
+    var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var charactersLength = characters.length;
+    for ( var i = 0; i < length; i++ ) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
 (async function() {
     'use strict';
     GM_setValue("logFile", "");
-    console.log("Beginning script - e");
+    console.log("Beginning script - A");
     let debug = Debug(true);
     // Open rewards box
     let openRewardsBoxStatus, openRewardsBoxResult = await openRewardsBox();
@@ -169,6 +196,7 @@ function getRewardUUID(reward){
         return;
     }
     rewards = rewards[1];
+    let fallGracefully = false;
 
     // Get current state
     let overlay = await waitTill(
@@ -272,52 +300,125 @@ function getRewardUUID(reward){
             if (startQuiz.length > 0){
                 // It is a quiz
                 // Press start quiz button
-                startQuiz[0].click();
-                await sleep(1000);
-                // let quizOptionsAll = document.getElementById("currentQuestionContainer").firstChild.lastChild.firstChild.lastChild.firstChild.firstChild.firstChild.children;
-                // debug("quizOptionsAll", quizOptionsAll);
-                let correctOptionsAll = document.querySelectorAll("[iscorrectoption='True']")
-                for (let i=0;i<correctOptionsAll.length;i++){
-                    let correctOption = correctOptionsAll[i];
-                    debug("correctOption", correctOption);
-                    let backgroundColor = window.getComputedStyle(correctOption).backgroundColor;
-                    debug("backgroundColor", backgroundColor);
-                    if (backgroundColor == "rgb(255, 255, 255)"){
-                        correctOption.click();
+                for (let i=0;i<=3;i++){
+                    // Try pressing start quiz button
+                    try{
+                        startQuiz[0].click();
+                        break;
+                    } catch (e){
+                        // If it fails, wait for 1 second and try again
                         await sleep(1000);
                     }
                 }
-            } else {debug("no startQuiz button"); choose(rewards).children[0].click();}
-        } else {debug("no quizContainer"); choose(rewards).children[0].click();}
-
-
+                await sleep(1000);
+            } else {debug("no startQuiz button");fallGracefully = true;}
+        } else {debug("no quizContainer");fallGracefully = true;}
     } 
-    
-    // No task is open
-    else {
-        for (let i=0;i<rewards.length;i++){
-            let reward = rewards[i];
-            let rewardUUID = getRewardUUID(reward)[1];
-            debug("reward", reward, rewardUUID);
-            let previousRewardUUID = GM_getValue("previousRewardUUID", "");
-            let checkMark = reward.getElementsByClassName("checkMark")
-            if (
-                previousRewardUUID == rewardUUID || 
-                checkMark.length > 0 || 
-                reward.children[0].href==="https://www.bing.com/"){
-                debug("previousRewardUUID == rewardUUID", previousRewardUUID, rewardUUID);
-                debug("checkMark.length > 0", checkMark);
+    // Quiz is already open
+    // let quizOptionsAll = document.getElementById("currentQuestionContainer").firstChild.lastChild.firstChild.lastChild.firstChild.firstChild.firstChild.children;
+    // debug("quizOptionsAll", quizOptionsAll);
+    let correctOptionsAll = document.querySelectorAll("[iscorrectoption='True']");
+    for (let i=0;i<correctOptionsAll.length;i++){
+        let correctOption = correctOptionsAll[i];
+        debug("correctOption", correctOption);
+        let backgroundColor = window.getComputedStyle(correctOption).backgroundColor;
+        debug("backgroundColor", backgroundColor);
+        if (backgroundColor == "rgb(255, 255, 255)"){
+            correctOption.click();
+            await sleep(1000);
+        }
+    }
+
+    // Single choice MCQ is already open
+    let singleChoiceMCQOptionsAll_infiniteLoopPrevention = 20;
+    while (true){
+        singleChoiceMCQOptionsAll_infiniteLoopPrevention--;
+        if (singleChoiceMCQOptionsAll_infiniteLoopPrevention <= 0){break;}
+        let singleChoiceMCQOptionsAll = document.getElementsByClassName("rq_button");
+        let i;
+        debug("singleChoiceMCQOptionsAll", singleChoiceMCQOptionsAll);
+        for (i=0;i<singleChoiceMCQOptionsAll.length;i++){
+            let singleChoiceMCQOption = singleChoiceMCQOptionsAll[i].firstChild.firstChild;
+            debug("singleChoiceMCQOption", singleChoiceMCQOption);
+            let borderColor = window.getComputedStyle(singleChoiceMCQOption).borderColor;
+            debug("borderColor", borderColor);
+            if (borderColor == 'rgb(255, 0, 0)'){
+                debug("borderColor continue");
                 continue;
             }
-            debug("clicked", reward.children[0])
-            var tab = window.open('about:blank', '_blank');
-            tab.document.write(GM_getValue("logFile", "").replaceAll("\n", "<br>"));
-            tab.document.close();
-            debug(GM_getValue("logFile", ""));
-            GM_setValue("previousRewardUUID", rewardUUID);
-            reward.children[0].click();
+            singleChoiceMCQOption.click();
+            await sleep(1000);
             break;
         }
+        if (i >= singleChoiceMCQOptionsAll.length){
+            break;
+        }
+    }
+        
+
+    
+    // No task is open
+    if (fallGracefully == true){await sleep(1000);}
+    for (let i=0;i<rewards.length;i++){
+        let reward = rewards[i];
+        let rewardUUID = getRewardUUID(reward)[1];
+        debug("reward", reward, rewardUUID);
+        let previousRewardUUID = GM_getValue("previousRewardUUID", "");
+        let checkMark = reward.getElementsByClassName("checkMark");
+        debug("checkMark", checkMark);
+        debug("previousRewardUUID", previousRewardUUID)
+        /////////////////////////////
+        // random search task
+        /////////////////////////////
+        if (reward.children[0].href==="https://www.bing.com/"){
+            let randoC1 = reward.querySelectorAll(".promo_card")[0].lastChild.firstChild;
+            debug("randoC1", randoC1);
+            randoC1 = randoC1.innerText;
+            debug("randoC1 innerText", randoC1);
+            let randoC1Number = getNumberFromString_forRandomSearch(randoC1);
+            debug("randoC1Number", randoC1Number);
+            let randoC2 = reward.querySelectorAll(".promo_card")[0].lastChild.lastChild;
+            debug("randoC2", randoC2);
+            randoC2 = randoC2.innerText;
+            debug("randoC2 innerText", randoC2);
+            let randoC2Number = getNumberFromString_forRandomSearch(randoC2);
+            debug("randoC2Number", randoC2Number);
+            debug("randoC1Number != randoC2Number", randoC1Number != randoC2Number);
+            if (randoC1Number == -1 || randoC2Number == -1){
+                debug("randoC1Number == -1 || randoC2Number == -1", randoC1Number, randoC2Number);
+            }
+            else if (randoC1Number != randoC2Number){
+                // Edit the search box
+                debug("search box initial value", document.getElementsByTagName("form")[0].childNodes[1].children[2].value)
+                document.getElementsByTagName("form")[0].childNodes[1].children[2].value = makeid(5) + "-" + randoC1Number + "-" + randoC2Number;
+                debug("search box final value"  , document.getElementsByTagName("form")[0].childNodes[1].children[2].value)
+                // Click the search button
+                document.querySelectorAll("[value='Search']")[0].click(); 
+                debug("search button", document.getElementsByTagName("form")[0].children[1].children[0].firstChild.firstChild.lastChild);
+                document.getElementsByTagName("form")[0].children[1].children[0].firstChild.firstChild.lastChild.click();
+                await sleep(3000);
+            }
+        }
+        if (
+            previousRewardUUID == rewardUUID || 
+            checkMark.length > 0 || 
+            reward.children[0].href==="https://www.bing.com/" ||
+            reward.children[0].href.startsWith("https://rewards.bing.com/redeem")
+            )
+        {
+            debug("previousRewardUUID == rewardUUID", previousRewardUUID, rewardUUID);
+            debug("checkMark.length > 0", checkMark);
+            debug("reward.children[0].href===", reward.children[0].href);
+            continue;
+        }
+        debug("clicked", reward.children[0])
+        var tab = window.open('about:blank', '_blank');
+        tab.document.write(GM_getValue("logFile", "").replaceAll("\n", "<br>"));
+        tab.document.close();
+        debug(GM_getValue("logFile", ""));
+        GM_setValue("previousRewardUUID", rewardUUID);
+        reward.children[0].click();
+        await sleep(3000);
     }
 
     console.log("Ending script");
